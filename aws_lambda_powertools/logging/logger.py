@@ -807,6 +807,75 @@ class Logger:
             extra=extra,
         )
 
+    # Aliases kept so `warn()` and `fatal()` follow the same buffering rules as `warning()` and `critical()`
+    # instead of being proxied straight to the standard library logger (see __getattr__).
+    warn = warning
+    fatal = critical
+
+    def log(
+        self,
+        level: int,
+        msg: object,
+        *args: object,
+        exc_info: logging._ExcInfoType = None,
+        stack_info: bool = False,
+        stacklevel: int = 2,
+        extra: Mapping[str, object] | None = None,
+        **kwargs: object,
+    ) -> None:
+        extra = extra or {}
+        extra = {**extra, **kwargs}
+
+        # Logging workflow for logging.log:
+        # 1. Buffer is completely disabled - log right away
+        # 2. Level is ERROR or above - flush the buffer when configured, then log right away
+        # 3. Level is above the buffer's maximum buffered level - bypass buffering
+        # 4. If none of the above, store in buffer for potential later processing
+
+        if not self._buffer_config:
+            return self._logger.log(
+                level,
+                msg,
+                *args,
+                exc_info=exc_info,
+                stack_info=stack_info,
+                stacklevel=stacklevel,
+                extra=extra,
+            )
+
+        if level >= logging.ERROR:
+            if self._buffer_config.flush_on_error_log:
+                self.flush_buffer()
+            return self._logger.log(
+                level,
+                msg,
+                *args,
+                exc_info=exc_info,
+                stack_info=stack_info,
+                stacklevel=stacklevel,
+                extra=extra,
+            )
+
+        if level > logging.getLevelName(self._buffer_config.buffer_at_verbosity):
+            return self._logger.log(
+                level,
+                msg,
+                *args,
+                exc_info=exc_info,
+                stack_info=stack_info,
+                stacklevel=stacklevel,
+                extra=extra,
+            )
+
+        self._add_log_record_to_buffer(
+            level=level,
+            msg=msg,
+            args=args,
+            exc_info=exc_info,
+            stack_info=stack_info,
+            extra=extra,
+        )
+
     def append_keys(self, **additional_keys: object) -> None:
         self.registered_formatter.append_keys(**additional_keys)
 

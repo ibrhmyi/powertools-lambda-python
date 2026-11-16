@@ -584,3 +584,68 @@ def test_flush_buffer_preserves_percent_style_formatting(stdout, service_name, m
     # THEN The flushed log should contain the interpolated message
     log = capture_multiple_logging_statements_output(stdout)
     assert log[0]["message"] == "user=alice count=42"
+
+
+def test_logger_log_method_respects_buffer(stdout, service_name, monkeypatch):
+    monkeypatch.setenv(constants.XRAY_TRACE_ID_ENV, "1-67c39786-5908a82a246fb67f3089263f")
+
+    # GIVEN a logger buffering records up to INFO
+    logger = Logger(
+        level="DEBUG",
+        service=service_name,
+        stream=stdout,
+        buffer_config=LoggerBufferConfig(max_bytes=10240, buffer_at_verbosity="INFO"),
+    )
+
+    # WHEN records are emitted through the generic log() method at or below INFO
+    logger.log(10, "debug via log")
+    logger.log(20, "info via log")
+
+    # THEN they are buffered instead of printed
+    assert stdout.getvalue() == ""
+
+    # AND flushing prints them with their original levels
+    logger.flush_buffer()
+    records = capture_multiple_logging_statements_output(stdout)
+    assert [(r["message"], r["level"]) for r in records] == [("debug via log", "DEBUG"), ("info via log", "INFO")]
+
+
+def test_logger_log_method_error_flushes_buffer(stdout, service_name, monkeypatch):
+    monkeypatch.setenv(constants.XRAY_TRACE_ID_ENV, "1-67c39786-5908a82a246fb67f3089263f")
+
+    # GIVEN a logger that flushes the buffer on error logs
+    logger = Logger(
+        level="DEBUG",
+        service=service_name,
+        stream=stdout,
+        buffer_config=LoggerBufferConfig(max_bytes=10240, buffer_at_verbosity="DEBUG", flush_on_error_log=True),
+    )
+    logger.debug("buffered debug")
+
+    # WHEN an error is emitted with log(40, ...)
+    logger.log(40, "boom")
+
+    # THEN the buffered record is flushed before the error
+    records = capture_multiple_logging_statements_output(stdout)
+    assert [r["message"] for r in records] == ["buffered debug", "boom"]
+
+
+def test_logger_warn_and_fatal_follow_buffer_rules(stdout, service_name, monkeypatch):
+    monkeypatch.setenv(constants.XRAY_TRACE_ID_ENV, "1-67c39786-5908a82a246fb67f3089263f")
+
+    # GIVEN a logger buffering up to WARNING
+    logger = Logger(
+        level="DEBUG",
+        service=service_name,
+        stream=stdout,
+        buffer_config=LoggerBufferConfig(max_bytes=10240, buffer_at_verbosity="WARNING", flush_on_error_log=True),
+    )
+
+    # WHEN warn() is used, it is buffered like warning()
+    logger.warn("buffered warn")
+    assert stdout.getvalue() == ""
+
+    # AND fatal() flushes the buffer like critical()
+    logger.fatal("fatal now")
+    records = capture_multiple_logging_statements_output(stdout)
+    assert [r["message"] for r in records] == ["buffered warn", "fatal now"]

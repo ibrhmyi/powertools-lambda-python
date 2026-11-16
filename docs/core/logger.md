@@ -574,7 +574,7 @@ When configuring log buffering, you have options to fine-tune how logs are captu
 | `buffer_at_verbosity` | Minimum log level to buffer                     | `DEBUG`, `INFO`, `WARNING`   |
 | `flush_on_error_log`  | Automatically flush buffer when an error occurs | `True` (default), `False`    |
 
-!!! note "When `flush_on_error_log` is enabled, it automatically flushes for `logger.exception()`, `logger.error()`, and `logger.critical()` statements."
+!!! note "When `flush_on_error_log` is enabled, it automatically flushes for `logger.exception()`, `logger.error()`, `logger.critical()` (and its alias `logger.fatal()`), and `logger.log()` at ERROR level or above. `logger.warn()` is buffered like `logger.warning()`."
 
 === "working_with_buffering_logs_different_levels.py"
 
