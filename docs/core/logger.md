@@ -857,6 +857,8 @@ You can use values ranging from `0.0` to `1` (100%) when setting `POWERTOOLS_LOG
 
 The sampling decision happens automatically with each invocation when using `@logger.inject_lambda_context` decorator.  When not using the decorator, you're in charge of refreshing it via `refresh_sample_rate_calculation` method. Skipping both may lead to unexpected sampling results.
 
+A level set with `logger.setLevel()` becomes the baseline the Logger returns to after a sampled invocation, so it is not reset to the constructor value on later invocations.
+
 === "sampling_debug_logs_with_decorator.py"
 
     ```python hl_lines="5 8"

@@ -1841,3 +1841,39 @@ def test_logger_with_durable_context(lambda_context, durable_context, stdout, se
     log = capture_logging_output(stdout)
     assert log["function_name"] == lambda_context.function_name
     assert log["function_request_id"] == lambda_context.aws_request_id
+
+
+def test_set_level_is_kept_when_sample_rate_is_refreshed(stdout, service_name):
+    # GIVEN a Logger with sampling configured but never sampled
+    logger = Logger(service=service_name, level="INFO", sampling_rate=0.0, stream=stdout)
+
+    # WHEN the level is changed after construction and a warm invocation refreshes the sample rate
+    logger.setLevel("WARNING")
+    logger.refresh_sample_rate_calculation()
+    logger.info("should be hidden")
+    logger.warning("should be shown")
+
+    # THEN the level set through setLevel is kept
+    logs = capture_multiple_logging_statements_output(stdout)
+    assert [log["message"] for log in logs] == ["should be shown"]
+
+
+def test_sampled_invocation_restores_level_set_with_set_level(monkeypatch, stdout, service_name):
+    # GIVEN a Logger sampling half of the invocations whose level was changed after construction
+    logger = Logger(service=service_name, level="INFO", sampling_rate=0.5, stream=stdout)
+    logger.setLevel("WARNING")
+
+    # WHEN one invocation is sampled and the next one is not
+    rolls = iter([0.1, 0.9])
+    monkeypatch.setattr("random.random", lambda: next(rolls))
+
+    logger.refresh_sample_rate_calculation()
+    logger.debug("sampled debug")
+    logger.refresh_sample_rate_calculation()
+    logger.debug("hidden debug")
+    logger.info("hidden info")
+    logger.warning("shown warning")
+
+    # THEN the sampled invocation lowers the level to DEBUG and the next one goes back to the level from setLevel
+    logs = capture_multiple_logging_statements_output(stdout)
+    assert [log["message"] for log in logs] == ["sampled debug", "shown warning"]

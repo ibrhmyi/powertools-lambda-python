@@ -929,7 +929,11 @@ class Logger:
         return None
 
     def setLevel(self, level: str | int | None) -> None:
-        return self._logger.setLevel(self._determine_log_level(level))
+        log_level = self._determine_log_level(level)
+        # Remember the level as the baseline that refresh_sample_rate_calculation() falls back to on every
+        # warm invocation, instead of the value given to the constructor
+        self.initial_log_level = log_level
+        return self._logger.setLevel(log_level)
 
     def addHandler(self, handler: logging.Handler) -> None:
         return self._logger.addHandler(handler)
