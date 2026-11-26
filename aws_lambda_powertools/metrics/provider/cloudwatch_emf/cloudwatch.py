@@ -585,3 +585,14 @@ class AmazonCloudWatchEMFProvider(BaseProvider):
             self.add_dimension(name, value)
 
         self.default_dimensions.update(**dimensions)
+
+    def clear_default_dimensions(self) -> None:
+        """Remove the default dimensions, including those already staged for the next flush
+
+        Default dimensions are copied into the pending dimension set when they are set and after every flush.
+        A dimension that was replaced with a different value, for example with `add_dimension()`, is kept.
+        """
+        for name, value in self.default_dimensions.items():
+            if self.dimension_set.get(name) == (value if isinstance(value, str) else str(value)):
+                del self.dimension_set[name]
+        self.default_dimensions.clear()

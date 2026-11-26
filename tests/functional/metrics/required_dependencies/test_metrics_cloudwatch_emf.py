@@ -1844,3 +1844,58 @@ def test_single_metric_log_metrics_with_durable_context(capsys, namespace, durab
     cold_start_output = json.loads(output[0])
     assert cold_start_output["ColdStart"] == [1.0]
     assert cold_start_output["function_name"] == "example_fn"
+
+
+def test_clear_default_dimensions_removes_them_from_the_next_flush(capsys, namespace):
+    # GIVEN Metrics with a default dimension
+    my_metrics = Metrics(namespace=namespace, service="booking")
+    my_metrics.set_default_dimensions(environment="dev")
+
+    # WHEN the default dimensions are cleared before the next flush
+    my_metrics.clear_default_dimensions()
+    my_metrics.add_metric(name="SuccessfulBooking", unit=MetricUnit.Count, value=1)
+    my_metrics.flush_metrics()
+
+    # THEN the flushed metric only carries the service dimension
+    output = capture_metrics_output(capsys)
+    assert output["_aws"]["CloudWatchMetrics"][0]["Dimensions"] == [["service"]]
+    assert "environment" not in output
+
+
+def test_clear_default_dimensions_after_clear_metrics_does_not_leak_into_next_flush(capsys, namespace):
+    # GIVEN default dimensions that were flushed once
+    my_metrics = Metrics(namespace=namespace, service="booking")
+    my_metrics.set_default_dimensions(environment="dev")
+    my_metrics.add_metric(name="TestA", unit=MetricUnit.Count, value=1)
+    my_metrics.flush_metrics()
+    capture_metrics_output(capsys)
+
+    # WHEN a test reset clears metrics first and default dimensions after, as in the documented fixture
+    reset = Metrics()
+    reset.clear_metrics()
+    reset.clear_default_dimensions()
+
+    my_metrics.add_metric(name="TestB", unit=MetricUnit.Count, value=1)
+    my_metrics.flush_metrics()
+
+    # THEN the next flush does not carry the cleared dimension
+    output = capture_metrics_output(capsys)
+    assert output["_aws"]["CloudWatchMetrics"][0]["Dimensions"] == [["service"]]
+
+
+def test_clear_default_dimensions_keeps_dimension_overridden_by_the_caller(capsys, namespace):
+    # GIVEN a default dimension that the caller replaced with a different value
+    my_metrics = Metrics(namespace=namespace, service="booking")
+    my_metrics.set_default_dimensions(environment="dev")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        my_metrics.add_dimension(name="environment", value="prod")
+
+    # WHEN the default dimensions are cleared
+    my_metrics.clear_default_dimensions()
+    my_metrics.add_metric(name="SuccessfulBooking", unit=MetricUnit.Count, value=1)
+    my_metrics.flush_metrics()
+
+    # THEN the dimension set explicitly by the caller is kept
+    output = capture_metrics_output(capsys)
+    assert output["environment"] == "prod"

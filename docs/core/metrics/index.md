@@ -123,7 +123,7 @@ You can call `add_metric()` with the same metric name multiple times. The values
 
 You can use `set_default_dimensions` method, or `default_dimensions` parameter in `log_metrics` decorator, to persist dimensions across Lambda invocations.
 
-If you'd like to remove them at some point, you can use `clear_default_dimensions` method.
+If you'd like to remove them at some point, you can use `clear_default_dimensions` method. It also removes them from the metrics waiting for the next flush, unless you replaced a default dimension with a different value using `add_dimension`.
 
 === "set_default_dimensions.py"
 

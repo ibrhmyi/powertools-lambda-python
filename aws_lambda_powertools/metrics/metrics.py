@@ -203,7 +203,7 @@ class Metrics:
         self.default_dimensions.update(**dimensions)
 
     def clear_default_dimensions(self) -> None:
-        self.provider.default_dimensions.clear()
+        self.provider.clear_default_dimensions()
         self.default_dimensions.clear()
 
     def clear_metrics(self) -> None:
