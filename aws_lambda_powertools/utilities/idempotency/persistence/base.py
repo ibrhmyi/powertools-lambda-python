@@ -275,7 +275,9 @@ class BasePersistenceLayer(ABC):
             unix timestamp of expiry date for idempotency record
 
         """
-        now = dt.datetime.now()
+        # Use an aware datetime so the period is measured in elapsed seconds, not local wall-clock time,
+        # which would add or lose an hour when the period crosses a daylight saving time change
+        now = dt.datetime.now(dt.timezone.utc)
         period = dt.timedelta(seconds=self.expires_after_seconds)
         return int((now + period).timestamp())
 
@@ -387,7 +389,7 @@ class BasePersistenceLayer(ABC):
         # Therefore, we need to check if remaining_time_in_millis is not None (>=0) to handle this case.
         # See: https://github.com/aws-powertools/powertools-lambda-python/issues/4759
         if remaining_time_in_millis is not None:
-            now = dt.datetime.now()
+            now = dt.datetime.now(dt.timezone.utc)
             period = dt.timedelta(milliseconds=remaining_time_in_millis)
             timestamp = (now + period).timestamp()
             data_record.in_progress_expiry_timestamp = int(timestamp * 1000)
