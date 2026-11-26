@@ -171,6 +171,9 @@ You can append additional keys using either mechanism:
 
 You can append your own keys to your existing Logger via `append_keys(**additional_key_values)` method.
 
+???+ note
+    A key that overrides a reserved log attribute, such as `lineno` or `name`, is a format template and its value must be a `str`. `append_keys`, `thread_safe_append_keys` and `append_context_keys` raise `ValueError` right away for any other type, instead of failing on every later log line.
+
 === "append_keys.py"
 
     ```python hl_lines="12"

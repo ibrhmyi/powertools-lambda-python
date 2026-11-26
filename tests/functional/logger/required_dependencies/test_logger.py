@@ -1841,3 +1841,61 @@ def test_logger_with_durable_context(lambda_context, durable_context, stdout, se
     log = capture_logging_output(stdout)
     assert log["function_name"] == lambda_context.function_name
     assert log["function_request_id"] == lambda_context.aws_request_id
+
+
+@pytest.mark.parametrize("key", ["lineno", "levelno", "name", "process"])
+def test_append_keys_rejects_non_string_value_for_reserved_attribute(stdout, service_name, key):
+    # GIVEN a Logger
+    logger = Logger(service=service_name, stream=stdout)
+
+    # WHEN a reserved log attribute is appended with a value that cannot be formatted
+    # THEN it fails at call time and names the key
+    with pytest.raises(ValueError, match=f"'{key}'"):
+        logger.append_keys(**{key: 5})
+
+    # AND the next log line is still printed
+    logger.info("after append")
+    log = capture_logging_output(stdout)
+    assert log["message"] == "after append"
+    assert key not in logger.get_current_keys()
+
+
+def test_thread_safe_append_keys_rejects_non_string_value_for_reserved_attribute(stdout, service_name):
+    # GIVEN a Logger
+    logger = Logger(service=service_name, stream=stdout)
+
+    # WHEN a reserved log attribute is appended in a thread-safe way with a non-string value
+    # THEN it fails at call time
+    with pytest.raises(ValueError, match="'lineno'"):
+        logger.thread_safe_append_keys(lineno=5)
+
+    # AND logging keeps working
+    logger.info("after append")
+    assert capture_logging_output(stdout)["message"] == "after append"
+
+
+def test_append_context_keys_rejects_non_string_value_for_reserved_attribute(stdout, service_name):
+    # GIVEN a Logger
+    logger = Logger(service=service_name, stream=stdout)
+
+    # WHEN a reserved log attribute with a non-string value is used as a context key
+    # THEN it fails when entering the context
+    with pytest.raises(ValueError, match="'lineno'"), logger.append_context_keys(lineno=5):
+        pass  # pragma: no cover
+
+    # AND logging keeps working
+    logger.info("after context")
+    assert capture_logging_output(stdout)["message"] == "after context"
+
+
+def test_append_keys_still_accepts_reserved_attribute_with_string_template(stdout, service_name):
+    # GIVEN a Logger
+    logger = Logger(service=service_name, stream=stdout)
+
+    # WHEN a reserved log attribute is appended with a string format template, which is supported
+    logger.append_keys(name="%(name)s")
+    logger.info("with template")
+
+    # THEN the template is rendered
+    log = capture_logging_output(stdout)
+    assert log["name"] == service_name

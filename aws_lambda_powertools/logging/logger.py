@@ -30,6 +30,7 @@ from aws_lambda_powertools.logging.exceptions import (
 from aws_lambda_powertools.logging.filters import SuppressFilter
 from aws_lambda_powertools.logging.formatter import (
     RESERVED_FORMATTER_CUSTOM_KEYS,
+    RESERVED_LOG_ATTRS,
     BasePowertoolsFormatter,
     LambdaPowertoolsFormatter,
 )
@@ -83,6 +84,20 @@ def _is_cold_start() -> bool:
     # This is a cold start - flip the flag and return True
     is_cold_start = False
     return True
+
+
+def _validate_additional_keys(additional_keys: Mapping[str, object]) -> None:
+    """Fail at call time for keys that would break every later log line.
+
+    A key that overrides a reserved log attribute is a format template, so its value must be a string.
+    The formatter raises otherwise, and the standard library swallows that error on every log call.
+    """
+    for key, value in additional_keys.items():
+        if value and key in RESERVED_LOG_ATTRS and not isinstance(value, str):
+            raise ValueError(
+                f"Logging key '{key}' overrides a reserved log attribute, so its value needs to be type 'str', "
+                f"instead got '{type(value).__name__}'",
+            )
 
 
 class Logger:
@@ -797,6 +812,7 @@ class Logger:
         )
 
     def append_keys(self, **additional_keys: object) -> None:
+        _validate_additional_keys(additional_keys)
         self.registered_formatter.append_keys(**additional_keys)
 
     def get_current_keys(self) -> dict[str, Any]:
@@ -830,6 +846,7 @@ class Logger:
                 logger.info("Log with context")
             logger.info("Log without context")
         """
+        _validate_additional_keys(additional_keys)
         with self.registered_formatter.append_context_keys(**additional_keys):
             yield
 
@@ -845,6 +862,7 @@ class Logger:
     # They prevent race conditions and ensure data consistency across multiple threads.
     def thread_safe_append_keys(self, **additional_keys: object) -> None:
         # Append additional key-value pairs to the context safely in a thread-safe manner.
+        _validate_additional_keys(additional_keys)
         self.registered_formatter.thread_safe_append_keys(**additional_keys)
 
     def thread_safe_get_current_keys(self) -> dict[str, Any]:
